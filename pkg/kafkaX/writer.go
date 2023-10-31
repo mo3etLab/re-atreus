@@ -2,23 +2,25 @@ package kafkaX
 
 import (
 	"context"
-	"strconv"
+	"errors"
 
 	"github.com/go-kratos/kratos/v2/log"
 
 	"github.com/segmentio/kafka-go"
 )
 
-func Update(writer *kafka.Writer, id uint32, num int32) error {
+var ErrKafkaWriter = errors.New("kafka writer error")
+
+func Update(writer *kafka.Writer, key, value string) error {
 	err := writer.WriteMessages(context.TODO(),
 		kafka.Message{
 			Partition: 0,
-			Key:       []byte(strconv.Itoa(int(id))),
-			Value:     []byte(strconv.Itoa(int(num))),
+			Key:       []byte(key),
+			Value:     []byte(value),
 		})
 	if err != nil {
-		return err
+		return errors.Join(ErrKafkaWriter, err)
 	}
-	log.Infof("update message success, id: %v, num: %v", id, num)
+	log.Infof("update message success, key: %v, value: %v", key, value)
 	return nil
 }

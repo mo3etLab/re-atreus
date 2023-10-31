@@ -3,6 +3,8 @@ package service
 import (
 	"context"
 
+	"github.com/jinzhu/copier"
+
 	pb "github.com/toomanysource/atreus/api/message/service/v1"
 	"github.com/toomanysource/atreus/app/message/service/internal/biz"
 
@@ -11,47 +13,41 @@ import (
 
 type MessageService struct {
 	pb.UnimplementedMessageServiceServer
-	mu  *biz.MessageUsecase
+	mu  *biz.MessageUseCase
 	log *log.Helper
 }
 
-func NewMessageService(mu *biz.MessageUsecase, logger log.Logger) *MessageService {
+func NewMessageService(mu *biz.MessageUseCase, logger log.Logger) *MessageService {
 	return &MessageService{
 		mu:  mu,
-		log: log.NewHelper(log.With(logger, "model", "service/Message")),
+		log: log.NewHelper(log.With(logger, "model", "service/message")),
 	}
 }
 
 func (s *MessageService) GetMessageList(ctx context.Context, req *pb.MessageListRequest) (*pb.MessageListReply, error) {
+	reply := &pb.MessageListReply{StatusCode: CodeSuccess, StatusMsg: "success", MessageList: make([]*pb.Message, 0)}
 	message, err := s.mu.GetMessageList(ctx, req.ToUserId, req.PreMsgTime)
 	if err != nil {
-		return &pb.MessageListReply{
-			StatusCode: -1,
-			StatusMsg:  err.Error(),
-		}, nil
+		reply.StatusCode = CodeFailed
+		reply.StatusMsg = err.Error()
+		return reply, nil
 	}
 	ml := make([]*pb.Message, 0, len(message))
-	for _, m := range message {
-		ml = append(ml, &pb.Message{
-			Id:         m.UId,
-			ToUserId:   m.ToUserId,
-			FromUserId: m.FromUserId,
-			Content:    m.Content,
-			CreateTime: m.CreateTime,
-		})
+	err = copier.Copy(&ml, &message)
+	if err != nil {
+		reply.StatusCode = CodeFailed
+		reply.StatusMsg = err.Error()
+		return reply, nil
 	}
-	return &pb.MessageListReply{
-		StatusCode:  0,
-		StatusMsg:   "success",
-		MessageList: ml,
-	}, nil
+	reply.MessageList = ml
+	return reply, nil
 }
 
 func (s *MessageService) MessageAction(ctx context.Context, req *pb.MessageActionRequest) (*pb.MessageActionReply, error) {
-	reply := &pb.MessageActionReply{StatusCode: 0, StatusMsg: "success"}
+	reply := &pb.MessageActionReply{StatusCode: CodeSuccess, StatusMsg: "success"}
 	err := s.mu.PublishMessage(ctx, req.ToUserId, req.ActionType, req.Content)
 	if err != nil {
-		reply.StatusCode = -1
+		reply.StatusCode = CodeFailed
 		reply.StatusMsg = err.Error()
 		return reply, nil
 	}

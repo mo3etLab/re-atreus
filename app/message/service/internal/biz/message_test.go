@@ -16,7 +16,7 @@ type MockMessageRepo struct{}
 func (m *MockMessageRepo) GetMessageList(ctx context.Context, toUserId uint32, preMsgTime int64) ([]*Message, error) {
 	return []*Message{
 		{
-			UId: 1,
+			Id: 1,
 		},
 	}, nil
 }
@@ -30,12 +30,12 @@ func (m *MockMessageRepo) InitStoreMessageQueue() {}
 var (
 	ctx      = context.Background()
 	mockRepo *MockMessageRepo
-	useCase  *MessageUsecase
+	useCase  *MessageUseCase
 )
 
 func TestMain(m *testing.M) {
 	ctx = context.WithValue(ctx, middleware.UserIdKey("user_id"), uint32(1))
-	useCase = NewMessageUsecase(mockRepo, log.DefaultLogger)
+	useCase = NewMessageUseCase(mockRepo, log.DefaultLogger)
 	m.Run()
 	os.Exit(0)
 }

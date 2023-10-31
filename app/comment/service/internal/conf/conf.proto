@@ -7,9 +7,8 @@ option go_package = "github.com/toomanysource/atreus/app/comment/service/interna
 
 message Bootstrap {
   Server server = 1;
-  Client client = 2;
-  Data data = 3;
-  JWT jwt = 4;
+  Data data = 2;
+  JWT jwt = 3;
 }
 
 message Server {
@@ -17,7 +16,6 @@ message Server {
     string network = 1;
     string addr = 2;
     google.protobuf.Duration timeout = 3;
-
   }
   message GRPC {
     string network = 1;
@@ -28,33 +26,21 @@ message Server {
   GRPC grpc = 2;
 }
 
-message Client {
-  message User {
-    string to = 1;
-  }
-  message Publish {
-    string to = 1;
-  }
-  User user = 1;
-  Publish publish = 2;
-}
-
 message Data {
   message Mysql {
     string driver = 1;
     string dsn = 2;
   }
-   message Redis {
-    int32 comment_db = 1;
+  message Redis {
+    int32 db = 1;
     string addr = 2;
     string password = 3;
-    string username = 4;
-    google.protobuf.Duration read_timeout = 5;
-    google.protobuf.Duration write_timeout = 6;
-   }
+    google.protobuf.Duration read_timeout = 4;
+    google.protobuf.Duration write_timeout = 5;
+  }
   message Kafka {
     string addr = 1;
-    string topic = 2;
+    string comment_topic = 2;
     int32 partition = 3;
     google.protobuf.Duration read_timeout = 4;
     google.protobuf.Duration write_timeout = 5;
@@ -73,4 +59,12 @@ message JWT {
   }
   HTTP http = 1;
   GRPC grpc = 2;
+}
+
+message Registry {
+  message Consul {
+    string address = 1;
+    string scheme = 2;
+  }
+  Consul consul = 1;
 }

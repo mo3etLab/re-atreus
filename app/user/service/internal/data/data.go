@@ -18,7 +18,7 @@ import (
 )
 
 // ProviderSet is data providers.
-var ProviderSet = wire.NewSet(NewData, NewKafkaReader, NewGormDb, NewRedisConn, NewUserRepo)
+var ProviderSet = wire.NewSet(NewData, NewKafkaReader, NewGormDb, NewRedisConn, NewUserRepo, NewRelationRepo)
 
 var (
 	maxOpenConnection = 100
@@ -131,7 +131,6 @@ func NewRedisConn(c *conf.Data, l log.Logger) *redis.Client {
 	client := redis.NewClient(&redis.Options{
 		DB:           int(c.Redis.Db),
 		Addr:         c.Redis.Addr,
-		Username:     c.Redis.Username,
 		WriteTimeout: c.Redis.WriteTimeout.AsDuration(),
 		ReadTimeout:  c.Redis.ReadTimeout.AsDuration(),
 		Password:     c.Redis.Password,

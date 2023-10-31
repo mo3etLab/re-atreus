@@ -28,10 +28,10 @@ func NewFavoriteService(fu *biz.FavoriteUseCase, logger log.Logger) *FavoriteSer
 func (s *FavoriteService) GetFavoriteList(
 	ctx context.Context, req *pb.FavoriteListRequest,
 ) (*pb.FavoriteListReply, error) {
-	reply := &pb.FavoriteListReply{StatusCode: 0, StatusMsg: "success", VideoList: make([]*pb.Video, 0)}
+	reply := &pb.FavoriteListReply{StatusCode: CodeSuccess, StatusMsg: "success", VideoList: make([]*pb.Video, 0)}
 	videos, err := s.fu.GetFavoriteList(ctx, req.UserId)
 	if err != nil {
-		reply.StatusCode = -1
+		reply.StatusCode = CodeFailed
 		reply.StatusMsg = err.Error()
 		return reply, nil
 	}
@@ -39,7 +39,7 @@ func (s *FavoriteService) GetFavoriteList(
 		DeepCopy: true,
 	})
 	if err != nil {
-		reply.StatusCode = -1
+		reply.StatusCode = CodeFailed
 		reply.StatusMsg = err.Error()
 		return reply, nil
 	}
@@ -49,10 +49,10 @@ func (s *FavoriteService) GetFavoriteList(
 func (s *FavoriteService) FavoriteAction(
 	ctx context.Context, req *pb.FavoriteActionRequest,
 ) (*pb.FavoriteActionReply, error) {
-	reply := &pb.FavoriteActionReply{StatusCode: 0, StatusMsg: "success"}
+	reply := &pb.FavoriteActionReply{StatusCode: CodeSuccess, StatusMsg: "success"}
 	err := s.fu.FavoriteAction(ctx, req.VideoId, req.ActionType)
 	if err != nil {
-		reply.StatusCode = -1
+		reply.StatusCode = CodeFailed
 		reply.StatusMsg = err.Error()
 		return reply, nil
 	}

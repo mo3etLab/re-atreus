@@ -16,7 +16,6 @@ message Server {
     string network = 1;
     string addr = 2;
     google.protobuf.Duration timeout = 3;
-
   }
   message GRPC {
     string network = 1;
@@ -33,12 +32,11 @@ message Data {
     string dsn = 2;
   }
   message Redis {
-    int32 message_db = 1;
+    int32 db = 1;
     string addr = 2;
     string password = 3;
-    string username = 4;
-    google.protobuf.Duration read_timeout = 5;
-    google.protobuf.Duration write_timeout = 6;
+    google.protobuf.Duration read_timeout = 4;
+    google.protobuf.Duration write_timeout = 5;
   }
   message Kafka {
     string addr = 1;
@@ -61,4 +59,12 @@ message JWT {
   }
   HTTP http = 1;
   GRPC grpc = 2;
+}
+
+message Registry {
+  message Consul {
+    string address = 1;
+    string scheme = 2;
+  }
+  Consul consul = 1;
 }

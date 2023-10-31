@@ -8,10 +8,9 @@ option go_package = "github.com/toomanysource/atreus/app/publish/service/interna
 
 message Bootstrap {
   Server server = 1;
-  Client client = 2;
-  Data data = 3;
-  JWT jwt = 4;
-  Minio minio = 5;
+  Data data = 2;
+  JWT jwt = 3;
+  Minio minio = 4;
 }
 
 message Server {
@@ -28,29 +27,12 @@ message Server {
   HTTP http = 1;
   GRPC grpc = 2;
 }
-message Client {
-  message User {
-    string to = 1;
-  }
-  message Favorite {
-    string to = 1;
-  }
-  User user = 1;
-  Favorite favorite = 2;
-}
 
 // Data
 message Data {
   message Mysql {
     string driver = 1;
     string dsn = 2;
-  }
-  message Redis {
-    int32 db = 1;
-    string addr = 2;
-    string password = 3;
-    google.protobuf.Duration read_timeout = 4;
-    google.protobuf.Duration write_timeout = 5;
   }
   message Kafka {
     string addr = 1;
@@ -62,8 +44,7 @@ message Data {
     google.protobuf.Duration write_timeout = 7;
   }
   Mysql mysql = 1;
-  Redis redis = 2;
-  Kafka kafka = 3;
+  Kafka kafka = 2;
 }
 
 message JWT {
@@ -84,4 +65,12 @@ message Minio {
   string access_secret = 4;
   bool use_ssl = 5;
   string bucket_name = 6;
+}
+
+message Registry {
+  message Consul {
+    string address = 1;
+    string scheme = 2;
+  }
+  Consul consul = 1;
 }

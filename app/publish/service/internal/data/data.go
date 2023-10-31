@@ -2,6 +2,7 @@ package data
 
 import (
 	"context"
+	"errors"
 	"sync"
 
 	"github.com/segmentio/kafka-go"
@@ -10,7 +11,6 @@ import (
 	"github.com/toomanysource/atreus/pkg/minioX"
 
 	"github.com/go-kratos/kratos/v2/log"
-	"github.com/go-redis/redis/v8"
 	"github.com/google/wire"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
@@ -19,129 +19,123 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-// ProviderSet is data providers.
-var ProviderSet = wire.NewSet(NewData, NewKafkaReader, NewKafkaWriter, NewPublishRepo, NewMysqlConn, NewRedisConn, NewMinioConn, NewMinioExtraConn, NewMinioIntraConn)
+var ProviderSet = wire.NewSet(NewData, NewKafkaReader, NewKafkaWriter, NewPublishRepo, NewMysqlConn, NewMinioConn, NewMinioExtraConn, NewMinioIntraConn)
+
+var (
+	ErrCopy                    = errors.New("copy error")
+	ErrMysqlInsert             = errors.New("mysql insert error")
+	ErrMysqlQuery              = errors.New("mysql query error")
+	ErrUserServiceResponse     = errors.New("user service response error")
+	ErrKafkaReader             = errors.New("kafka reader error")
+	ErrFileCreate              = errors.New("file create error")
+	ErrFileRead                = errors.New("file read error")
+	ErrFileWrite               = errors.New("file write error")
+	ErrMysqlUpdate             = errors.New("mysql update error")
+	ErrFavoriteServiceResponse = errors.New("favorite service response error")
+)
 
 type KfkReader struct {
 	comment  *kafka.Reader
 	favorite *kafka.Reader
 }
 
-// Data .
 type Data struct {
 	db        *gorm.DB
 	oss       *minioX.Client
 	kfkReader KfkReader
 	kfkWriter *kafka.Writer
-	cache     *redis.Client
 	log       *log.Helper
 }
 
-// NewData .
-func NewData(db *gorm.DB, minioClient *minioX.Client, kfkWriter *kafka.Writer, kfkReader KfkReader, cacheClient *redis.Client, logger log.Logger) (*Data, func(), error) {
+func NewData(db *gorm.DB, minioClient *minioX.Client, kfkWriter *kafka.Writer, kfkReader KfkReader, logger log.Logger) (*Data, func(), error) {
+	logHelper := log.NewHelper(log.With(logger, "module", "data/data"))
 	cleanup := func() {
 		var wg sync.WaitGroup
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			if err := kfkReader.comment.Close(); err != nil {
-				log.NewHelper(logger).Errorf("Kafka connection closure failed, err: %w", err)
+				logHelper.Errorf("kafka connection closure failed, err: %w", err)
 			}
+			logHelper.Info("successfully close the kafka comment queue connection")
 		}()
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			if err := kfkReader.favorite.Close(); err != nil {
-				log.NewHelper(logger).Errorf("Kafka connection closure failed, err: %w", err)
+				logHelper.Errorf("kafka connection closure failed, err: %w", err)
 			}
+			logHelper.Info("successfully close the kafka favorite queue connection")
 		}()
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			if err := kfkWriter.Close(); err != nil {
-				log.NewHelper(logger).Errorf("Kafka connection closure failed, err: %w", err)
+				logHelper.Errorf("Kafka connection closure failed, err: %w", err)
 			}
+			logHelper.Info("successfully close the kafka writer connection")
 		}()
 		wg.Wait()
-		log.NewHelper(logger).Info("Successfully close the Kafka connection")
 	}
 	data := &Data{
 		db:        db.Model(&Video{}),
 		oss:       minioClient,
 		kfkReader: kfkReader,
 		kfkWriter: kfkWriter,
-		cache:     cacheClient,
-		log:       log.NewHelper(logger),
+		log:       logHelper,
 	}
 	return data, cleanup, nil
 }
 
-// NewMysqlConn mysql数据库连接
-func NewMysqlConn(c *conf.Data) *gorm.DB {
+func NewMysqlConn(c *conf.Data, l log.Logger) *gorm.DB {
+	logs := log.NewHelper(log.With(l, "module", "data/data/mysql"))
 	db, err := gorm.Open(mysql.Open(c.Mysql.Dsn), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Info),
 	})
 	if err != nil {
-		log.Fatalf("Database connection failure, err : %v", err)
+		logs.Fatalf("database connection failure, err : %v", err)
 	}
 	InitDB(db)
-	log.Info("Database enabled successfully!")
+	logs.Info("database enabled successfully")
 	return db
 }
 
-// NewRedisConn Redis数据库连接
-func NewRedisConn(c *conf.Data) *redis.Client {
-	client := redis.NewClient(&redis.Options{
-		DB:           int(c.Redis.Db),
-		Addr:         c.Redis.Addr,
-		Username:     "atreus",
-		WriteTimeout: c.Redis.WriteTimeout.AsDuration(),
-		ReadTimeout:  c.Redis.ReadTimeout.AsDuration(),
-		Password:     c.Redis.Password,
-	})
-
-	// ping Redis客户端，判断连接是否存在
-	_, err := client.Ping(context.Background()).Result()
-	if err != nil {
-		log.Fatalf("Redis database connection failure, err : %v", err)
-	}
-	log.Info("Cache enabled successfully!")
-	return client
-}
-
-func NewMinioConn(c *conf.Minio, extraConn minioX.ExtraConn, intraConn minioX.IntraConn) *minioX.Client {
+func NewMinioConn(c *conf.Minio, extraConn minioX.ExtraConn, intraConn minioX.IntraConn, l log.Logger) *minioX.Client {
+	logs := log.NewHelper(log.With(l, "module", "data/data/minio"))
 	client := minioX.NewClient(extraConn, intraConn)
-	if exists, err := client.ExistBucket(context.Background(), c.BucketName); !exists || err != nil {
-		log.Fatalf("Minio bucket %s miss,err: %v", c.BucketName, err)
+	if err := client.CreateBucket(context.Background(), c.BucketName); err != nil {
+		logs.Fatal(err)
 	}
+	logs.Info("minio enabled successfully")
 	return client
 }
 
-func NewMinioExtraConn(c *conf.Minio) minioX.ExtraConn {
+func NewMinioExtraConn(c *conf.Minio, l log.Logger) minioX.ExtraConn {
+	logs := log.NewHelper(log.With(l, "module", "data/data/minioExtra"))
 	extraConn, err := minio.New(c.EndpointExtra, &minio.Options{
 		Creds:  credentials.NewStaticV4(c.AccessKeyId, c.AccessSecret, ""),
 		Secure: c.UseSsl,
 	})
 	if err != nil {
-		log.Fatalf("minio client init failed,err: %v", err)
+		logs.Fatalf("minio client init failed,err: %v", err)
 	}
-	log.Info("minioExtra enabled successfully")
 	return minioX.NewExtraConn(extraConn)
 }
 
-func NewMinioIntraConn(c *conf.Minio) minioX.IntraConn {
+func NewMinioIntraConn(c *conf.Minio, l log.Logger) minioX.IntraConn {
+	logs := log.NewHelper(log.With(l, "module", "data/data/minioIntra"))
 	intraConn, err := minio.New(c.EndpointIntra, &minio.Options{
 		Creds:  credentials.NewStaticV4(c.AccessKeyId, c.AccessSecret, ""),
 		Secure: c.UseSsl,
 	})
 	if err != nil {
-		log.Fatalf("minio client init failed,err: %v", err)
+		logs.Fatalf("minio client init failed,err: %v", err)
 	}
-	log.Info("minioIntra enabled successfully")
 	return minioX.NewIntraConn(intraConn)
 }
 
-func NewKafkaReader(c *conf.Data) KfkReader {
+func NewKafkaReader(c *conf.Data, l log.Logger) KfkReader {
+	logs := log.NewHelper(log.With(l, "module", "data/data/kafkaReader"))
 	var maxBytes int = 10e6
 	reader := func(topic string) *kafka.Reader {
 		return kafka.NewReader(kafka.ReaderConfig{
@@ -152,15 +146,16 @@ func NewKafkaReader(c *conf.Data) KfkReader {
 			MaxBytes:  maxBytes, // 10MB
 		})
 	}
-	log.Info("Kafka enabled successfully!")
+	logs.Info("kafka reader enabled successfully")
 	return KfkReader{
 		comment:  reader(c.Kafka.CommentTopic),
 		favorite: reader(c.Kafka.FavoriteTopic),
 	}
 }
 
-func NewKafkaWriter(c *conf.Data) *kafka.Writer {
-	return &kafka.Writer{
+func NewKafkaWriter(c *conf.Data, l log.Logger) *kafka.Writer {
+	logs := log.NewHelper(log.With(l, "module", "data/data/kafkaWriter"))
+	writer := &kafka.Writer{
 		Addr:                   kafka.TCP(c.Kafka.Addr),
 		Topic:                  c.Kafka.PublishTopic,
 		Balancer:               &kafka.LeastBytes{},
@@ -168,10 +163,12 @@ func NewKafkaWriter(c *conf.Data) *kafka.Writer {
 		ReadTimeout:            c.Kafka.ReadTimeout.AsDuration(),
 		AllowAutoTopicCreation: true,
 	}
+	logs.Info("kafka writer enabled successfully")
+	return writer
 }
 
 func InitDB(db *gorm.DB) {
 	if err := db.AutoMigrate(&Video{}); err != nil {
-		log.Fatalf("Database initialization error, err : %v", err)
+		log.Fatalf("database initialization error, err : %v", err)
 	}
 }

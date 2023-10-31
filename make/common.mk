@@ -9,10 +9,7 @@ COMMON_SELF_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
 ifeq ($(origin ROOT_DIR),undefined)
 ROOT_DIR := $(abspath $(shell cd $(COMMON_SELF_DIR)/.. && pwd -P))
 endif
-ifeq ($(origin OUTPUT_DIR),undefined)
-OUTPUT_DIR := $(ROOT_DIR)/_output
-$(shell mkdir -p $(OUTPUT_DIR))
-endif
+DATA_DIR := $(ROOT_DIR)/_data
 
 # ================================================
 # Colors: globel colors to share.
@@ -33,3 +30,4 @@ include make/cli.mk
 include make/help.mk
 include make/proto.mk
 include make/golang.mk
+include make/docker.mk

@@ -2,7 +2,8 @@ package biz
 
 import (
 	"context"
-	"fmt"
+
+	"github.com/toomanysource/atreus/middleware"
 
 	"github.com/go-kratos/kratos/v2/log"
 )
@@ -40,35 +41,62 @@ func NewRelationUseCase(repo RelationRepo, logger log.Logger) *RelationUseCase {
 
 // GetFollowList 获取关注列表
 func (uc *RelationUseCase) GetFollowList(ctx context.Context, userId uint32) ([]*User, error) {
-	return uc.repo.GetFollowList(ctx, userId)
+	if userId == 0 {
+		userID := ctx.Value(middleware.UserIdKey("user_id")).(uint32)
+		users, err := uc.repo.GetFollowList(ctx, userID)
+		if err != nil {
+			uc.log.Errorf("GetFollowList error: %v", err)
+		}
+		return users, err
+	}
+	users, err := uc.repo.GetFollowList(ctx, userId)
+	if err != nil {
+		uc.log.Errorf("GetFollowList error: %v", err)
+	}
+	return users, err
 }
 
 // GetFollowerList 获取粉丝列表
 func (uc *RelationUseCase) GetFollowerList(ctx context.Context, userId uint32) ([]*User, error) {
-	return uc.repo.GetFollowerList(ctx, userId)
+	if userId == 0 {
+		userID := ctx.Value(middleware.UserIdKey("user_id")).(uint32)
+		users, err := uc.repo.GetFollowerList(ctx, userID)
+		if err != nil {
+			uc.log.Errorf("GetFollowerList error: %v", err)
+		}
+		return users, err
+	}
+	users, err := uc.repo.GetFollowerList(ctx, userId)
+	if err != nil {
+		uc.log.Errorf("GetFollowerList error: %v", err)
+	}
+	return users, err
 }
 
 // Action 关注和取消关注
-func (uc *RelationUseCase) Action(ctx context.Context, toUserId uint32, actionType uint32) error {
-	var followType uint32 = 1
-	var unfollowType uint32 = 2
+func (uc *RelationUseCase) Action(ctx context.Context, toUserId uint32, actionType uint32) (err error) {
 	switch actionType {
 	// 1为关注
-	case followType:
-		err := uc.repo.Follow(ctx, toUserId)
-		if err != nil {
-			return fmt.Errorf("failed to follow: %w", err)
+	case FollowType:
+		if err = uc.repo.Follow(ctx, toUserId); err != nil {
+			uc.log.Errorf("Follow error: %v", err)
 		}
+		return err
 	// 2为取消关注
-	case unfollowType:
-		err := uc.repo.UnFollow(ctx, toUserId)
-		if err != nil {
-			return fmt.Errorf("failed to unfollow: %w", err)
+	case UnfollowType:
+		if err = uc.repo.UnFollow(ctx, toUserId); err != nil {
+			uc.log.Errorf("UnFollow error: %v", err)
 		}
+		return err
+	default:
+		return ErrInValidActionType
 	}
-	return nil
 }
 
 func (uc *RelationUseCase) IsFollow(ctx context.Context, userId uint32, toUserId []uint32) ([]bool, error) {
-	return uc.repo.IsFollow(ctx, userId, toUserId)
+	oks, err := uc.repo.IsFollow(ctx, userId, toUserId)
+	if err != nil {
+		uc.log.Errorf("IsFollow error: %v", err)
+	}
+	return oks, err
 }
